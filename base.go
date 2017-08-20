@@ -35,7 +35,7 @@ func countAge(timestamp *int64) int {
 }
 
 func initializeSchema() (db*Schema) {
-	db = &Schema{make(map[uint]*User),make(map[uint]*Location),make(map[uint]*Visit)}
+	db = &Schema{make(map[uint]*User, 112000),make(map[uint]*Location, 87114),make(map[uint]*Visit, 1012000)}
 	_, err := exec.Command("sh","-c", "unzip /tmp/data/data.zip -d /tmp/base/").Output()
 	if err != nil {
 		fmt.Fprintln(os.Stdout, err.Error())

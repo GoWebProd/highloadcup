@@ -64,8 +64,8 @@ func getUserVisits(c *routing.Context) error {
 	id2, _ := strconv.Atoi(c.Param("id"))
 	id := uint(id2)
 
-	u, ok := db.users[id]
-	if !ok {
+	u := db.users[id]
+	if u == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
@@ -130,8 +130,8 @@ func getLocationAvg(c *routing.Context) error {
 	id2, _ := strconv.Atoi(c.Param("id"))
 	id := uint(id2)
 
-	l, ok := db.locations[id]
-	if !ok {
+	l := db.locations[id]
+	if l == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
@@ -369,8 +369,8 @@ func updateUser(c *routing.Context) error {
 
 	id, _ := strconv.Atoi(c.Param("id"))
 
-	u, ok := db.users[uint(id)]
-	if !ok {
+	u := db.users[uint(id)]
+	if u == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
@@ -457,8 +457,8 @@ func updateLocation(c *routing.Context) error {
 
 	id, _ := strconv.Atoi(c.Param("id"))
 
-	l, ok := db.locations[uint(id)]
-	if !ok {
+	l := db.locations[uint(id)]
+	if l == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
@@ -529,8 +529,8 @@ func updateVisit(c *routing.Context) error {
 
 	id, _ := strconv.Atoi(c.Param("id"))
 
-	v, ok := db.visits[uint(id)]
-	if !ok {
+	v := db.visits[uint(id)]
+	if v == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
