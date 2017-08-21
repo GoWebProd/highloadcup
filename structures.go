@@ -10,6 +10,7 @@ type User struct {
 
 	age   int
 	visits Visits
+	json []byte
 }
 
 type Location struct {
@@ -20,6 +21,7 @@ type Location struct {
 	distance int64
 
 	visits Visits
+	json []byte
 }
 
 type Visit struct {
@@ -28,6 +30,8 @@ type Visit struct {
 	user *User
 	visited_at int64
 	mark int64
+
+	json []byte
 }
 
 type Schema struct {
@@ -37,15 +41,3 @@ type Schema struct {
 }
 
 type Visits []*Visit
-
-func (slice Visits) Len() int {
-	return len(slice)
-}
-
-func (slice Visits) Less(i, j int) bool {
-	return slice[i].visited_at < slice[j].visited_at
-}
-
-func (slice Visits) Swap(i, j int)  {
-	slice[i], slice[j] = slice[j], slice[i]
-}

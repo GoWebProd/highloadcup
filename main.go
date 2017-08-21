@@ -2,67 +2,75 @@ package main
 
 import (
 	"log"
-	"strconv"
 	"fmt"
 	"sort"
 	"bytes"
 
 	"github.com/valyala/fasthttp"
-	"github.com/qiangxue/fasthttp-routing"
 	"github.com/buger/jsonparser"
+	//_ "net/http"
+	//_ "net/http/pprof"
 )
 
 var db = initializeSchema()
 
-func getUser(c *routing.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
+func getUser(_id []byte, c *fasthttp.RequestCtx) error {
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	user := db.users[uint(id)]
+	user := db.users[id]
 	if user == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
 
-	gender := "m"
-	if user.gender == false {
-		gender = "f"
-	}
-	fmt.Fprintf(c, "{\"id\":%d,\"email\":\"%s\",\"first_name\":\"%s\",\"last_name\":\"%s\",\"gender\":\"%s\",\"birth_date\":%d}",
-		user.id, user.email, user.first_name, user.last_name, gender, user.birth_date)
+	c.Write(user.json)
 	return nil
 }
 
-func getLocation(c *routing.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
+func getLocation(_id []byte, c *fasthttp.RequestCtx) error {
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	loc := db.locations[uint(id)]
+	loc := db.locations[id]
 	if loc == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
 
-	fmt.Fprintf(c, "{\"id\":%d,\"place\":\"%s\",\"country\":\"%s\",\"city\":\"%s\",\"distance\":%d}",
-		loc.id, loc.place, loc.country, loc.city, loc.distance)
+	c.Write(loc.json)
 	return nil
 }
 
-func getVisit(c *routing.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
+func getVisit(_id []byte, c *fasthttp.RequestCtx) error {
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	visit := db.visits[uint(id)]
+	visit := db.visits[id]
 	if visit == nil {
 		c.Response.SetStatusCode(404)
 		return nil
 	}
 
-	fmt.Fprintf(c, "{\"id\":%d,\"location\":%d,\"user\":%d,\"visited_at\":%d,\"mark\":%d}",
-		visit.id, visit.location.id, visit.user.id, visit.visited_at, visit.mark)
+	c.Write(visit.json)
 	return nil
 }
 
-func getUserVisits(c *routing.Context) error {
-	id2, _ := strconv.Atoi(c.Param("id"))
-	id := uint(id2)
+func getUserVisits(_id []byte, c *fasthttp.RequestCtx) error {
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
 	u := db.users[id]
 	if u == nil {
@@ -111,24 +119,20 @@ func getUserVisits(c *routing.Context) error {
 			mem = append(mem, v)
 		}
 	}
-	sort.Sort(mem)
+	sort.Slice(mem, func (i, j int) bool {
+		return mem[i].visited_at < mem[j].visited_at
+	})
 
-	fmt.Fprint(c, "{\"visits\":[")
-	for i, v := range mem {
-		if i > 0 {
-			fmt.Fprint(c, ",")
-		}
-		fmt.Fprintf(c, "{\"mark\":%d,\"visited_at\":%d,\"place\":\"%s\"}",
-			v.mark, v.visited_at, v.location.place)
-	}
-	fmt.Fprint(c, "]}")
-
+	c.Write(getVisitsJson(mem))
 	return nil
 }
 
-func getLocationAvg(c *routing.Context) error {
-	id2, _ := strconv.Atoi(c.Param("id"))
-	id := uint(id2)
+func getLocationAvg(_id []byte, c *fasthttp.RequestCtx) error {
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
 	l := db.locations[id]
 	if l == nil {
@@ -197,18 +201,16 @@ func getLocationAvg(c *routing.Context) error {
 		}
 	}
 
-	fmt.Fprint(c, "{\"avg\":")
 	if count == 0 || sum == 0 {
-		fmt.Fprint(c, 0)
+		c.Write(getAvgJson(0))
 	} else {
-		fmt.Fprintf(c, "%.5f", float64(sum) / float64(count) + 1e-7)
+		c.Write(getAvgJson(float64(sum) / float64(count) + 1e-7))
 	}
-	fmt.Fprint(c, "}")
 
 	return nil
 }
 
-func addUser(c *routing.Context) error {
+func addUser(c *fasthttp.RequestCtx) error {
 	u := &User{}
 	var id, email, first_name, last_name, gender, birth_date bool
 	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
@@ -250,6 +252,7 @@ func addUser(c *routing.Context) error {
 	if !id || !email || !first_name || !last_name || !gender || !birth_date {
 		c.Response.SetStatusCode(400)
 	} else {
+		getUserJson(u)
 		db.users[u.id] = u
 		fmt.Fprint(c, "{}")
 	}
@@ -257,7 +260,7 @@ func addUser(c *routing.Context) error {
 	return nil
 }
 
-func addLocation(c *routing.Context) error {
+func addLocation(c *fasthttp.RequestCtx) error {
 	defer c.SetConnectionClose()
 
 	l := &Location{}
@@ -295,13 +298,14 @@ func addLocation(c *routing.Context) error {
 	if !id || !place || !country || !city || !distance {
 		c.Response.SetStatusCode(400)
 	} else {
+		getLocationJson(l)
 		db.locations[l.id] = l
 		fmt.Fprint(c, "{}")
 	}
 	return nil
 }
 
-func addVisit(c *routing.Context) error {
+func addVisit(c *fasthttp.RequestCtx) error {
 	defer c.SetConnectionClose()
 
 	v := &Visit{}
@@ -355,6 +359,7 @@ func addVisit(c *routing.Context) error {
 	if !id || !location || !user || !visited_at || !mark {
 		c.Response.SetStatusCode(400)
 	} else {
+		getVisitJson(v)
 		db.visits[v.id] = v
 		v = db.visits[v.id]
 		v.user.visits = append(v.user.visits, v)
@@ -364,12 +369,16 @@ func addVisit(c *routing.Context) error {
 	return nil
 }
 
-func updateUser(c *routing.Context) error {
+func updateUser(_id []byte, c *fasthttp.RequestCtx) error {
 	defer c.SetConnectionClose()
 
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	u := db.users[uint(id)]
+	u := db.users[id]
 	if u == nil {
 		c.Response.SetStatusCode(404)
 		return nil
@@ -446,18 +455,24 @@ func updateUser(c *routing.Context) error {
 		u.birth_date = u2.birth_date
 		u.age = u2.age
 		u.gender = u2.gender
+
+		getUserJson(u)
 		fmt.Fprint(c, "{}")
 	}
 
 	return nil
 }
 
-func updateLocation(c *routing.Context) error {
+func updateLocation(_id []byte, c *fasthttp.RequestCtx) error {
 	defer c.SetConnectionClose()
 
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	l := db.locations[uint(id)]
+	l := db.locations[id]
 	if l == nil {
 		c.Response.SetStatusCode(404)
 		return nil
@@ -518,18 +533,24 @@ func updateLocation(c *routing.Context) error {
 		l.country = l2.country
 		l.city = l2.city
 		l.distance = l2.distance
+
+		getLocationJson(l)
 		fmt.Fprint(c, "{}")
 	}
 
 	return nil
 }
 
-func updateVisit(c *routing.Context) error {
+func updateVisit(_id []byte, c *fasthttp.RequestCtx) error {
 	defer c.SetConnectionClose()
 
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, ok := byteToInt(_id)
+	if !ok {
+		c.Response.SetStatusCode(404)
+		return nil
+	}
 
-	v := db.visits[uint(id)]
+	v := db.visits[id]
 	if v == nil {
 		c.Response.SetStatusCode(404)
 		return nil
@@ -603,27 +624,76 @@ func updateVisit(c *routing.Context) error {
 			v.location = v2.location
 			v.location.visits = append(v.location.visits, v)
 		}
+		getVisitJson(v)
 		fmt.Fprint(c, "{}")
 	}
 
 	return nil
 }
 
+func HandleRequest(c *fasthttp.RequestCtx)  {
+	p := c.Request.Header.RequestURI()
+	l := len(p)
+	for i, v := range p {
+		if v == '?' {
+			l = i
+			p = p[:l]
+			break
+		}
+	}
+
+	switch {
+	case l > 7 && bytes.Equal(p[:7], []byte("/users/")):
+		if c.IsPost() {
+			if l == 10 && bytes.Equal(p[7:], []byte("new")) {
+				addUser(c)
+			} else {
+				updateUser(p[7:], c)
+			}
+		} else {
+			if l < 15 || !bytes.Equal(p[l-7:], []byte("/visits")) {
+				getUser(p[7:], c)
+			} else {
+				getUserVisits(p[7:l-7], c)
+			}
+		}
+
+	case l > 11 && bytes.Equal(p[:11], []byte("/locations/")):
+		if c.IsPost() {
+			if l == 14 && bytes.Equal(p[11:], []byte("new")) {
+				addLocation(c)
+				return
+			} else {
+				updateLocation(p[11:], c)
+				return
+			}
+		} else {
+			if l < 16 || !bytes.Equal(p[l-4:], []byte("/avg")) {
+				getLocation(p[11:], c)
+			} else {
+				getLocationAvg(p[11:l-4], c)
+			}
+		}
+	case l > 8 && bytes.Equal(p[:8], []byte("/visits/")):
+		if c.IsPost() {
+			if l == 11 && bytes.Equal(p[8:], []byte("new")) {
+				addVisit(c)
+				return
+			} else {
+				updateVisit(p[8:], c)
+				return
+			}
+		} else {
+			getVisit(p[8:], c)
+		}
+	default:
+		c.SetStatusCode(404)
+	}
+}
+
 func main() {
-	router := routing.New()
-	router.Get("/users/<id:\\d+>", getUser).Post(updateUser)
-	router.Get("/locations/<id:\\d+>", getLocation).Post(updateLocation)
-	router.Get("/visits/<id:\\d+>", getVisit).Post(updateVisit)
-
-	router.Get("/users/<id:\\d+>/visits", getUserVisits)
-	router.Get("/locations/<id:\\d+>/avg", getLocationAvg)
-
-	router.Post("/users/new", addUser)
-	router.Post("/locations/new", addLocation)
-	router.Post("/visits/new", addVisit)
-
-
-	if err := fasthttp.ListenAndServe(":80", router.HandleRequest); err != nil {
+	//go http.ListenAndServe("0.0.0.0:8081", nil)
+	if err := fasthttp.ListenAndServe(":80", HandleRequest); err != nil {
 		log.Fatalf("Error in ListenAndServe: %s", err)
 	}
 }
