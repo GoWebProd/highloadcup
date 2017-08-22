@@ -8,8 +8,9 @@ import (
 
 	"github.com/valyala/fasthttp"
 	"github.com/buger/jsonparser"
-	//_ "net/http"
+	//"net/http"
 	//_ "net/http/pprof"
+	"runtime"
 )
 
 var db = initializeSchema()
@@ -693,7 +694,15 @@ func HandleRequest(c *fasthttp.RequestCtx)  {
 
 func main() {
 	//go http.ListenAndServe("0.0.0.0:8081", nil)
-	if err := fasthttp.ListenAndServe(":80", HandleRequest); err != nil {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	s := &fasthttp.Server{
+		Handler: HandleRequest,
+		Name: "HiLoad",
+		LogAllErrors: false,
+		WriteBufferSize: 8192,
+	}
+	if err := s.ListenAndServe(":80"); err != nil {
 		log.Fatalf("Error in ListenAndServe: %s", err)
 	}
 }
