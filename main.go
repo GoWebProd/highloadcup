@@ -1,82 +1,83 @@
 package main
 
 import (
-	"log"
 	"fmt"
 	"sort"
 	"bytes"
 
-	"github.com/valyala/fasthttp"
 	"github.com/buger/jsonparser"
 	//"net/http"
 	//_ "net/http/pprof"
+	"syscall"
+	"os"
+	"strconv"
+	"net/url"
 	"runtime"
 )
 
 var db = initializeSchema()
 
-func getUser(_id []byte, c *fasthttp.RequestCtx) error {
+func getUser(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	user := db.users[id]
 	if user == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
-	c.Write(user.json)
-	return nil
+	c.answer.Write(user.json)
+	return
 }
 
-func getLocation(_id []byte, c *fasthttp.RequestCtx) error {
+func getLocation(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	loc := db.locations[id]
 	if loc == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
-	c.Write(loc.json)
-	return nil
+	c.answer.Write(loc.json)
+	return
 }
 
-func getVisit(_id []byte, c *fasthttp.RequestCtx) error {
+func getVisit(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	visit := db.visits[id]
 	if visit == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
-	c.Write(visit.json)
-	return nil
+	c.answer.Write(visit.json)
 }
 
-func getUserVisits(_id []byte, c *fasthttp.RequestCtx) error {
+func getUserVisits(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	u := db.users[id]
 	if u == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	from := -9223372036854775808
@@ -84,31 +85,31 @@ func getUserVisits(_id []byte, c *fasthttp.RequestCtx) error {
 	country := ""
 	distance := 9223372036854775807
 
-	qA := c.QueryArgs()
 	var err error
-	if qA.Has("fromDate") {
-		from, err = qA.GetUint("fromDate")
+	if c.args.Has("fromDate") {
+		from, err = c.args.GetUint("fromDate")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("toDate") {
-		to, err = qA.GetUint("toDate")
+	if c.args.Has("toDate") {
+		to, err = c.args.GetUint("toDate")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("toDistance") {
-		distance, err = qA.GetUint("toDistance")
+	if c.args.Has("toDistance") {
+		distance, err = c.args.GetUint("toDistance")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("country") {
-		country = string(qA.Peek("country"))
+	if c.args.Has("country") {
+		country = string(c.args.GetString("country"))
+		country, _ = url.QueryUnescape(country)
 	}
 
 	mem := Visits{}
@@ -124,21 +125,20 @@ func getUserVisits(_id []byte, c *fasthttp.RequestCtx) error {
 		return mem[i].visited_at < mem[j].visited_at
 	})
 
-	c.Write(getVisitsJson(mem))
-	return nil
+	c.answer.Write(getVisitsJson(mem))
 }
 
-func getLocationAvg(_id []byte, c *fasthttp.RequestCtx) error {
+func getLocationAvg(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	l := db.locations[id]
 	if l == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	from := -9223372036854775808
@@ -147,45 +147,44 @@ func getLocationAvg(_id []byte, c *fasthttp.RequestCtx) error {
 	to2 := 9223372036854775807
 	gender := 2
 
-	qA := c.QueryArgs()
 	var err error
-	if qA.Has("fromDate") {
-		from, err = qA.GetUint("fromDate")
+	if c.args.Has("fromDate") {
+		from, err = c.args.GetUint("fromDate")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("toDate") {
-		to, err = qA.GetUint("toDate")
+	if c.args.Has("toDate") {
+		to, err = c.args.GetUint("toDate")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("fromAge") {
-		from2, err = qA.GetUint("fromAge")
+	if c.args.Has("fromAge") {
+		from2, err = c.args.GetUint("fromAge")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("toAge") {
-		to2, err = qA.GetUint("toAge")
+	if c.args.Has("toAge") {
+		to2, err = c.args.GetUint("toAge")
 		if err != nil {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
-	if qA.Has("gender") {
-		g := qA.Peek("gender")
+	if c.args.Has("gender") {
+		g := c.args.GetString("gender")
 		if bytes.Equal(g, []byte{'m'}) {
 			gender = 1
 		} else if bytes.Equal(g, []byte{'f'}) {
 			gender = 0
 		} else {
-			c.Response.SetStatusCode(400)
-			return nil
+			c.status = 400
+			return
 		}
 	}
 
@@ -203,18 +202,16 @@ func getLocationAvg(_id []byte, c *fasthttp.RequestCtx) error {
 	}
 
 	if count == 0 || sum == 0 {
-		c.Write(getAvgJson(0))
+		c.answer.Write(getAvgJson(0))
 	} else {
-		c.Write(getAvgJson(float64(sum) / float64(count) + 1e-7))
+		c.answer.Write(getAvgJson(float64(sum) / float64(count) + 1e-7))
 	}
-
-	return nil
 }
 
-func addUser(c *fasthttp.RequestCtx) error {
+func addUser(c *Request) {
 	u := &User{}
 	var id, email, first_name, last_name, gender, birth_date bool
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")) && dataType == jsonparser.Number:
 			i, err := jsonparser.GetInt(value)
@@ -251,23 +248,19 @@ func addUser(c *fasthttp.RequestCtx) error {
 		return nil
 	})
 	if !id || !email || !first_name || !last_name || !gender || !birth_date {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		getUserJson(u)
+		c.answer.WriteString("{}")
 		db.users[u.id] = u
-		fmt.Fprint(c, "{}")
 	}
-	c.SetConnectionClose()
-	return nil
 }
 
-func addLocation(c *fasthttp.RequestCtx) error {
-	defer c.SetConnectionClose()
-
+func addLocation(c *Request) {
 	l := &Location{}
 	var id, place, country, city, distance bool
 
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")) && dataType == jsonparser.Number:
 			i, err := jsonparser.GetInt(value)
@@ -297,22 +290,19 @@ func addLocation(c *fasthttp.RequestCtx) error {
 	})
 
 	if !id || !place || !country || !city || !distance {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		getLocationJson(l)
+		c.answer.WriteString("{}")
 		db.locations[l.id] = l
-		fmt.Fprint(c, "{}")
 	}
-	return nil
 }
 
-func addVisit(c *fasthttp.RequestCtx) error {
-	defer c.SetConnectionClose()
-
+func addVisit(c *Request) {
 	v := &Visit{}
 	var id, location, user, visited_at, mark bool
 
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")):
 			i, err := jsonparser.GetInt(value)
@@ -358,31 +348,28 @@ func addVisit(c *fasthttp.RequestCtx) error {
 	})
 
 	if !id || !location || !user || !visited_at || !mark {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		getVisitJson(v)
+		c.answer.WriteString("{}")
 		db.visits[v.id] = v
 		v = db.visits[v.id]
 		v.user.visits = append(v.user.visits, v)
 		v.location.visits = append(v.location.visits, v)
-		fmt.Fprint(c, "{}")
 	}
-	return nil
 }
 
-func updateUser(_id []byte, c *fasthttp.RequestCtx) error {
-	defer c.SetConnectionClose()
-
+func updateUser(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	u := db.users[id]
 	if u == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	var cc int
@@ -395,7 +382,7 @@ func updateUser(_id []byte, c *fasthttp.RequestCtx) error {
 	u2.age = u.age
 	u2.gender = u.gender
 
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -448,7 +435,7 @@ func updateUser(_id []byte, c *fasthttp.RequestCtx) error {
 	})
 
 	if err || cc == 0 {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		u.email = u2.email
 		u.first_name = u2.first_name
@@ -458,25 +445,21 @@ func updateUser(_id []byte, c *fasthttp.RequestCtx) error {
 		u.gender = u2.gender
 
 		getUserJson(u)
-		fmt.Fprint(c, "{}")
+		c.answer.WriteString("{}")
 	}
-
-	return nil
 }
 
-func updateLocation(_id []byte, c *fasthttp.RequestCtx) error {
-	defer c.SetConnectionClose()
-
+func updateLocation(_id []byte, c *Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	l := db.locations[id]
 	if l == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	var cc int
@@ -487,7 +470,7 @@ func updateLocation(_id []byte, c *fasthttp.RequestCtx) error {
 	l2.city = l.city
 	l2.country = l.country
 
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -528,7 +511,7 @@ func updateLocation(_id []byte, c *fasthttp.RequestCtx) error {
 	})
 
 	if err || cc == 0 {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		l.place = l2.place
 		l.country = l2.country
@@ -536,25 +519,22 @@ func updateLocation(_id []byte, c *fasthttp.RequestCtx) error {
 		l.distance = l2.distance
 
 		getLocationJson(l)
-		fmt.Fprint(c, "{}")
+		c.answer.WriteString("{}")
 	}
-
-	return nil
 }
 
-func updateVisit(_id []byte, c *fasthttp.RequestCtx) error {
-	defer c.SetConnectionClose()
+func updateVisit(_id []byte, c *Request) {
 
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	v := db.visits[id]
 	if v == nil {
-		c.Response.SetStatusCode(404)
-		return nil
+		c.status = 404
+		return
 	}
 
 	var err bool
@@ -565,7 +545,7 @@ func updateVisit(_id []byte, c *fasthttp.RequestCtx) error {
 	v2.mark = v.mark
 	v2.visited_at = v.visited_at
 
-	jsonparser.ObjectEach(c.PostBody(), func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -613,7 +593,7 @@ func updateVisit(_id []byte, c *fasthttp.RequestCtx) error {
 	})
 
 	if err || cc == 0 {
-		c.Response.SetStatusCode(400)
+		c.status = 400
 	} else {
 		v.mark = v2.mark
 		v.visited_at = v2.visited_at
@@ -626,26 +606,19 @@ func updateVisit(_id []byte, c *fasthttp.RequestCtx) error {
 			v.location.visits = append(v.location.visits, v)
 		}
 		getVisitJson(v)
-		fmt.Fprint(c, "{}")
+		c.answer.WriteString("{}")
 	}
 
-	return nil
+	return
 }
 
-func HandleRequest(c *fasthttp.RequestCtx)  {
-	p := c.Request.Header.RequestURI()
+func HandleRequest(c *Request)  {
+	p := c.path
 	l := len(p)
-	for i, v := range p {
-		if v == '?' {
-			l = i
-			p = p[:l]
-			break
-		}
-	}
 
 	switch {
 	case l > 7 && bytes.Equal(p[:7], []byte("/users/")):
-		if c.IsPost() {
+		if c.post {
 			if l == 10 && bytes.Equal(p[7:], []byte("new")) {
 				addUser(c)
 			} else {
@@ -660,7 +633,7 @@ func HandleRequest(c *fasthttp.RequestCtx)  {
 		}
 
 	case l > 11 && bytes.Equal(p[:11], []byte("/locations/")):
-		if c.IsPost() {
+		if c.post {
 			if l == 14 && bytes.Equal(p[11:], []byte("new")) {
 				addLocation(c)
 				return
@@ -676,7 +649,7 @@ func HandleRequest(c *fasthttp.RequestCtx)  {
 			}
 		}
 	case l > 8 && bytes.Equal(p[:8], []byte("/visits/")):
-		if c.IsPost() {
+		if c.post {
 			if l == 11 && bytes.Equal(p[8:], []byte("new")) {
 				addVisit(c)
 				return
@@ -688,21 +661,208 @@ func HandleRequest(c *fasthttp.RequestCtx)  {
 			getVisit(p[8:], c)
 		}
 	default:
-		c.SetStatusCode(404)
+		c.status = 404
 	}
 }
 
-func main() {
-	//go http.ListenAndServe("0.0.0.0:8081", nil)
-	runtime.GOMAXPROCS(runtime.NumCPU())
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	s := &fasthttp.Server{
-		Handler: HandleRequest,
-		Name: "HiLoad",
-		LogAllErrors: false,
-		WriteBufferSize: 8192,
+const (
+	MaxEpollEvents = 10
+	KB             = 1024
+)
+
+type headers map[string][]byte
+
+func (c headers) Has(key string) bool {
+	_, ok := c[key]
+	return ok
+}
+
+func (c headers) GetUint(key string) (a int, b error) {
+	val := c[key]
+	a, b = strconv.Atoi(string(val))
+	return
+}
+
+func (c headers) GetString(key string) []byte {
+	return c[key]
+}
+
+type Request struct {
+	path []byte
+	url []byte
+	arg []byte
+	body []byte
+	post bool
+
+	args headers
+	answer bytes.Buffer
+	status int
+}
+
+var buf [KB]byte
+func echo(in int) {
+
+	nbytes, _ := syscall.Read(in, buf[:])
+	if nbytes == 0 {
+		syscall.Close(in)
+	} else if nbytes > 0 {
+		r := Request{}
+		r.status = 200
+		if bytes.Equal(buf[0:4], []byte("POST")) {
+			r.post = true
+			for i := 0; i < nbytes - 4; i++ {
+				if bytes.Equal(buf[i : i + 4], []byte("\r\n\r\n")) {
+					r.body = buf[i + 4 : nbytes]
+					break
+				}
+			}
+		}
+		space := -1
+		for i := 0; i < nbytes; i++ {
+			if buf[i] == ' ' {
+				if space == -1 {
+					space = i + 1
+				} else {
+					r.url = buf[space : i]
+					r.path = r.url
+					break
+				}
+			}
+		}
+
+		r.args = make(map[string][]byte)
+		for i, v := range r.url {
+			if v == '?' {
+				r.path = r.url[:i]
+
+				a := r.url[i + 1 : ]
+				if len(a) > 0 {
+					splitted := bytes.Split(a, []byte("&"))
+					for _, v := range splitted {
+						kv := bytes.Split(v, []byte("="))
+						r.args[string(kv[0])] = kv[1]
+					}
+				}
+
+				break
+			}
+		}
+
+		HandleRequest(&r)
+		var b bytes.Buffer
+		b.Grow(250)
+		b.WriteString("HTTP/1.1 ")
+		if r.status == 200 {
+			b.WriteString("200 OK")
+		} else if r.status == 400 {
+			b.WriteString("400 Not Found")
+		} else if r.status == 404 {
+			b.WriteString("404 Bad Request")
+		}
+		b.WriteString("\r\nContent-Type: application/json\r\nContent-Length: ")
+		b.WriteString(strconv.Itoa(r.answer.Len()))
+		b.WriteString("\r\nConnection: keep-alive\r\nServer: GoWebProd 1.0\r\n\r\n")
+		b.Write(r.answer.Bytes())
+
+		syscall.Write(in, b.Bytes())
+		if r.post {
+			syscall.Close(in)
+		}
 	}
-	if err := s.ListenAndServe(":80"); err != nil {
-		log.Fatalf("Error in ListenAndServe: %s", err)
+}
+
+func main()  {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	//go http.ListenAndServe("0.0.0.0:8081", nil)
+
+	var event syscall.EpollEvent
+
+	s, e := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	if e != nil {
+		fmt.Println("create socket: ", e)
+		os.Exit(1)
+	}
+
+	syscall.SetNonblock(s, true)
+
+	e = syscall.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+	if e != nil {
+		fmt.Println("reuse: ", e)
+		os.Exit(1)
+	}
+
+	e = syscall.SetsockoptInt(s, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1)
+	if e != nil {
+		fmt.Println("nodelay: ", e)
+		os.Exit(1)
+	}
+
+	e = syscall.SetsockoptInt(s, syscall.SOL_TCP, 0x17, 16384)
+	if e != nil {
+		fmt.Println("fastopen: ", e)
+		os.Exit(1)
+	}
+
+	e = syscall.Bind(s, &syscall.SockaddrInet4{Port: 80, Addr: [4]byte{0, 0, 0, 0}})
+	if e != nil {
+		fmt.Println("bind: ", e)
+		os.Exit(1)
+	}
+
+	e = syscall.Listen(s, 100)
+	if e != nil {
+		fmt.Println("listen: ", e)
+		os.Exit(1)
+	}
+
+	epfd, e := syscall.EpollCreate1(0)
+	if e != nil {
+		fmt.Println("epoll_create1: ", e)
+		os.Exit(1)
+	}
+	defer syscall.Close(epfd)
+
+	event.Events = syscall.EPOLLIN
+	event.Fd = int32(s)
+	if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, s, &event); e != nil {
+		fmt.Println("epoll_ctl: ", e)
+		os.Exit(1)
+	}
+
+	var ss = int32(s)
+	var events [MaxEpollEvents]syscall.EpollEvent
+	for {
+		nevents, e := syscall.EpollWait(epfd, events[:], -1)
+		if e != nil {
+			fmt.Println("epoll_wait: ", e)
+			break
+		}
+
+		for ev := 0; ev < nevents; ev++ {
+			if events[ev].Fd != ss {
+				echo(int(events[ev].Fd))
+			} else {
+				ndf, _, e := syscall.Accept4(s, syscall.SOCK_NONBLOCK)
+				if e != nil {
+					fmt.Println("accept: ", e)
+					os.Exit(1)
+				}
+
+				event.Events = syscall.EPOLLIN
+				event.Fd = int32(ndf)
+				if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, ndf, &event); e != nil {
+					fmt.Println("epoll_ctl: ", e)
+					os.Exit(1)
+				}
+			}
+		}
 	}
 }
