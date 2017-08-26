@@ -1,82 +1,80 @@
 package main
 
 import (
-	"fmt"
-	"sort"
 	"bytes"
-
-	"github.com/buger/jsonparser"
-	//"net/http"
-	//_ "net/http/pprof"
-	"syscall"
-	"os"
-	"strconv"
 	"net/url"
 	"runtime"
+
+	"github.com/buger/jsonparser"
+	"highload/myHttp"
+
+	
+	//"net/http"
+	//_ "net/http/pprof"
 )
 
 var db = initializeSchema()
 
-func getUser(_id []byte, c *Request) {
+func getUser(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	user := db.users[id]
 	if user == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
-	c.answer.Write(user.json)
+	c.Answer.Write(user.json)
 	return
 }
 
-func getLocation(_id []byte, c *Request) {
+func getLocation(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	loc := db.locations[id]
 	if loc == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
-	c.answer.Write(loc.json)
+	c.Answer.Write(loc.json)
 	return
 }
 
-func getVisit(_id []byte, c *Request) {
+func getVisit(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	visit := db.visits[id]
 	if visit == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
-	c.answer.Write(visit.json)
+	c.Answer.Write(visit.json)
 }
 
-func getUserVisits(_id []byte, c *Request) {
+func getUserVisits(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	u := db.users[id]
 	if u == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
@@ -86,29 +84,29 @@ func getUserVisits(_id []byte, c *Request) {
 	distance := 9223372036854775807
 
 	var err error
-	if c.args.Has("fromDate") {
-		from, err = c.args.GetUint("fromDate")
+	if c.Args.Has("fromDate") {
+		from, err = c.Args.GetUint("fromDate")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("toDate") {
-		to, err = c.args.GetUint("toDate")
+	if c.Args.Has("toDate") {
+		to, err = c.Args.GetUint("toDate")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("toDistance") {
-		distance, err = c.args.GetUint("toDistance")
+	if c.Args.Has("toDistance") {
+		distance, err = c.Args.GetUint("toDistance")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("country") {
-		country = string(c.args.GetString("country"))
+	if c.Args.Has("country") {
+		country = string(c.Args.GetString("country"))
 		country, _ = url.QueryUnescape(country)
 	}
 
@@ -121,23 +119,29 @@ func getUserVisits(_id []byte, c *Request) {
 			mem = append(mem, v)
 		}
 	}
-	sort.Slice(mem, func (i, j int) bool {
-		return mem[i].visited_at < mem[j].visited_at
-	})
 
-	c.answer.Write(getVisitsJson(mem))
+	for i := 0; i < len(mem) - 1; i++ {
+		if mem[i + 1].visited_at < mem[i].visited_at {
+			mem[i + 1], mem[i] = mem[i], mem[i + 1]
+			if i > 0 {
+				i -= 2
+			}
+		}
+	}
+
+	getVisitsJson(mem, &c.Answer)
 }
 
-func getLocationAvg(_id []byte, c *Request) {
+func getLocationAvg(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	l := db.locations[id]
 	if l == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
@@ -148,42 +152,42 @@ func getLocationAvg(_id []byte, c *Request) {
 	gender := 2
 
 	var err error
-	if c.args.Has("fromDate") {
-		from, err = c.args.GetUint("fromDate")
+	if c.Args.Has("fromDate") {
+		from, err = c.Args.GetUint("fromDate")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("toDate") {
-		to, err = c.args.GetUint("toDate")
+	if c.Args.Has("toDate") {
+		to, err = c.Args.GetUint("toDate")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("fromAge") {
-		from2, err = c.args.GetUint("fromAge")
+	if c.Args.Has("fromAge") {
+		from2, err = c.Args.GetUint("fromAge")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("toAge") {
-		to2, err = c.args.GetUint("toAge")
+	if c.Args.Has("toAge") {
+		to2, err = c.Args.GetUint("toAge")
 		if err != nil {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
-	if c.args.Has("gender") {
-		g := c.args.GetString("gender")
+	if c.Args.Has("gender") {
+		g := c.Args.GetString("gender")
 		if bytes.Equal(g, []byte{'m'}) {
 			gender = 1
 		} else if bytes.Equal(g, []byte{'f'}) {
 			gender = 0
 		} else {
-			c.status = 400
+			c.Status = 400
 			return
 		}
 	}
@@ -202,16 +206,16 @@ func getLocationAvg(_id []byte, c *Request) {
 	}
 
 	if count == 0 || sum == 0 {
-		c.answer.Write(getAvgJson(0))
+		getAvgJson(0, &c.Answer)
 	} else {
-		c.answer.Write(getAvgJson(float64(sum) / float64(count) + 1e-7))
+		getAvgJson(float64(sum) / float64(count) + 1e-7, &c.Answer)
 	}
 }
 
-func addUser(c *Request) {
+func addUser(c *myHttp.Request) {
 	u := &User{}
 	var id, email, first_name, last_name, gender, birth_date bool
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")) && dataType == jsonparser.Number:
 			i, err := jsonparser.GetInt(value)
@@ -248,19 +252,19 @@ func addUser(c *Request) {
 		return nil
 	})
 	if !id || !email || !first_name || !last_name || !gender || !birth_date {
-		c.status = 400
+		c.Status = 400
 	} else {
 		getUserJson(u)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 		db.users[u.id] = u
 	}
 }
 
-func addLocation(c *Request) {
+func addLocation(c *myHttp.Request) {
 	l := &Location{}
 	var id, place, country, city, distance bool
 
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")) && dataType == jsonparser.Number:
 			i, err := jsonparser.GetInt(value)
@@ -290,19 +294,19 @@ func addLocation(c *Request) {
 	})
 
 	if !id || !place || !country || !city || !distance {
-		c.status = 400
+		c.Status = 400
 	} else {
 		getLocationJson(l)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 		db.locations[l.id] = l
 	}
 }
 
-func addVisit(c *Request) {
+func addVisit(c *myHttp.Request) {
 	v := &Visit{}
 	var id, location, user, visited_at, mark bool
 
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		switch {
 		case bytes.Equal(key, []byte("id")):
 			i, err := jsonparser.GetInt(value)
@@ -348,10 +352,10 @@ func addVisit(c *Request) {
 	})
 
 	if !id || !location || !user || !visited_at || !mark {
-		c.status = 400
+		c.Status = 400
 	} else {
 		getVisitJson(v)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 		db.visits[v.id] = v
 		v = db.visits[v.id]
 		v.user.visits = append(v.user.visits, v)
@@ -359,16 +363,16 @@ func addVisit(c *Request) {
 	}
 }
 
-func updateUser(_id []byte, c *Request) {
+func updateUser(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	u := db.users[id]
 	if u == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
@@ -382,7 +386,7 @@ func updateUser(_id []byte, c *Request) {
 	u2.age = u.age
 	u2.gender = u.gender
 
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -435,7 +439,7 @@ func updateUser(_id []byte, c *Request) {
 	})
 
 	if err || cc == 0 {
-		c.status = 400
+		c.Status = 400
 	} else {
 		u.email = u2.email
 		u.first_name = u2.first_name
@@ -445,20 +449,20 @@ func updateUser(_id []byte, c *Request) {
 		u.gender = u2.gender
 
 		getUserJson(u)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 	}
 }
 
-func updateLocation(_id []byte, c *Request) {
+func updateLocation(_id []byte, c *myHttp.Request) {
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	l := db.locations[id]
 	if l == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
@@ -470,7 +474,7 @@ func updateLocation(_id []byte, c *Request) {
 	l2.city = l.city
 	l2.country = l.country
 
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -511,7 +515,7 @@ func updateLocation(_id []byte, c *Request) {
 	})
 
 	if err || cc == 0 {
-		c.status = 400
+		c.Status = 400
 	} else {
 		l.place = l2.place
 		l.country = l2.country
@@ -519,21 +523,21 @@ func updateLocation(_id []byte, c *Request) {
 		l.distance = l2.distance
 
 		getLocationJson(l)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 	}
 }
 
-func updateVisit(_id []byte, c *Request) {
+func updateVisit(_id []byte, c *myHttp.Request) {
 
 	id, ok := byteToInt(_id)
 	if !ok {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
 	v := db.visits[id]
 	if v == nil {
-		c.status = 404
+		c.Status = 404
 		return
 	}
 
@@ -545,7 +549,7 @@ func updateVisit(_id []byte, c *Request) {
 	v2.mark = v.mark
 	v2.visited_at = v.visited_at
 
-	jsonparser.ObjectEach(c.body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	jsonparser.ObjectEach(c.Body, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		cc++
 		if err {
 			return nil
@@ -593,7 +597,7 @@ func updateVisit(_id []byte, c *Request) {
 	})
 
 	if err || cc == 0 {
-		c.status = 400
+		c.Status = 400
 	} else {
 		v.mark = v2.mark
 		v.visited_at = v2.visited_at
@@ -606,19 +610,19 @@ func updateVisit(_id []byte, c *Request) {
 			v.location.visits = append(v.location.visits, v)
 		}
 		getVisitJson(v)
-		c.answer.WriteString("{}")
+		c.Answer.WriteString("{}")
 	}
 
 	return
 }
 
-func HandleRequest(c *Request)  {
-	p := c.path
+func HandleRequest(c *myHttp.Request)  {
+	p := c.Path
 	l := len(p)
 
 	switch {
 	case l > 7 && bytes.Equal(p[:7], []byte("/users/")):
-		if c.post {
+		if c.Post {
 			if l == 10 && bytes.Equal(p[7:], []byte("new")) {
 				addUser(c)
 			} else {
@@ -633,7 +637,7 @@ func HandleRequest(c *Request)  {
 		}
 
 	case l > 11 && bytes.Equal(p[:11], []byte("/locations/")):
-		if c.post {
+		if c.Post {
 			if l == 14 && bytes.Equal(p[11:], []byte("new")) {
 				addLocation(c)
 				return
@@ -649,7 +653,7 @@ func HandleRequest(c *Request)  {
 			}
 		}
 	case l > 8 && bytes.Equal(p[:8], []byte("/visits/")):
-		if c.post {
+		if c.Post {
 			if l == 11 && bytes.Equal(p[8:], []byte("new")) {
 				addVisit(c)
 				return
@@ -661,208 +665,13 @@ func HandleRequest(c *Request)  {
 			getVisit(p[8:], c)
 		}
 	default:
-		c.status = 404
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const (
-	MaxEpollEvents = 10
-	KB             = 1024
-)
-
-type headers map[string][]byte
-
-func (c headers) Has(key string) bool {
-	_, ok := c[key]
-	return ok
-}
-
-func (c headers) GetUint(key string) (a int, b error) {
-	val := c[key]
-	a, b = strconv.Atoi(string(val))
-	return
-}
-
-func (c headers) GetString(key string) []byte {
-	return c[key]
-}
-
-type Request struct {
-	path []byte
-	url []byte
-	arg []byte
-	body []byte
-	post bool
-
-	args headers
-	answer bytes.Buffer
-	status int
-}
-
-var buf [KB]byte
-func echo(in int) {
-
-	nbytes, _ := syscall.Read(in, buf[:])
-	if nbytes == 0 {
-		syscall.Close(in)
-	} else if nbytes > 0 {
-		r := Request{}
-		r.status = 200
-		if bytes.Equal(buf[0:4], []byte("POST")) {
-			r.post = true
-			for i := 0; i < nbytes - 4; i++ {
-				if bytes.Equal(buf[i : i + 4], []byte("\r\n\r\n")) {
-					r.body = buf[i + 4 : nbytes]
-					break
-				}
-			}
-		}
-		space := -1
-		for i := 0; i < nbytes; i++ {
-			if buf[i] == ' ' {
-				if space == -1 {
-					space = i + 1
-				} else {
-					r.url = buf[space : i]
-					r.path = r.url
-					break
-				}
-			}
-		}
-
-		r.args = make(map[string][]byte)
-		for i, v := range r.url {
-			if v == '?' {
-				r.path = r.url[:i]
-
-				a := r.url[i + 1 : ]
-				if len(a) > 0 {
-					splitted := bytes.Split(a, []byte("&"))
-					for _, v := range splitted {
-						kv := bytes.Split(v, []byte("="))
-						r.args[string(kv[0])] = kv[1]
-					}
-				}
-
-				break
-			}
-		}
-
-		HandleRequest(&r)
-		var b bytes.Buffer
-		b.Grow(250)
-		b.WriteString("HTTP/1.1 ")
-		if r.status == 200 {
-			b.WriteString("200 OK")
-		} else if r.status == 400 {
-			b.WriteString("400 Not Found")
-		} else if r.status == 404 {
-			b.WriteString("404 Bad Request")
-		}
-		b.WriteString("\r\nContent-Type: application/json\r\nContent-Length: ")
-		b.WriteString(strconv.Itoa(r.answer.Len()))
-		b.WriteString("\r\nConnection: keep-alive\r\nServer: GoWebProd 1.0\r\n\r\n")
-		b.Write(r.answer.Bytes())
-
-		syscall.Write(in, b.Bytes())
-		if r.post {
-			syscall.Close(in)
-		}
+		c.Status = 404
 	}
 }
 
 func main()  {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	//go http.ListenAndServe("0.0.0.0:8081", nil)
-
-	var event syscall.EpollEvent
-
-	s, e := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	if e != nil {
-		fmt.Println("create socket: ", e)
-		os.Exit(1)
-	}
-
-	syscall.SetNonblock(s, true)
-
-	e = syscall.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
-	if e != nil {
-		fmt.Println("reuse: ", e)
-		os.Exit(1)
-	}
-
-	e = syscall.SetsockoptInt(s, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1)
-	if e != nil {
-		fmt.Println("nodelay: ", e)
-		os.Exit(1)
-	}
-
-	e = syscall.SetsockoptInt(s, syscall.SOL_TCP, 0x17, 16384)
-	if e != nil {
-		fmt.Println("fastopen: ", e)
-		os.Exit(1)
-	}
-
-	e = syscall.Bind(s, &syscall.SockaddrInet4{Port: 80, Addr: [4]byte{0, 0, 0, 0}})
-	if e != nil {
-		fmt.Println("bind: ", e)
-		os.Exit(1)
-	}
-
-	e = syscall.Listen(s, 100)
-	if e != nil {
-		fmt.Println("listen: ", e)
-		os.Exit(1)
-	}
-
-	epfd, e := syscall.EpollCreate1(0)
-	if e != nil {
-		fmt.Println("epoll_create1: ", e)
-		os.Exit(1)
-	}
-	defer syscall.Close(epfd)
-
-	event.Events = syscall.EPOLLIN
-	event.Fd = int32(s)
-	if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, s, &event); e != nil {
-		fmt.Println("epoll_ctl: ", e)
-		os.Exit(1)
-	}
-
-	var ss = int32(s)
-	var events [MaxEpollEvents]syscall.EpollEvent
-	for {
-		nevents, e := syscall.EpollWait(epfd, events[:], -1)
-		if e != nil {
-			fmt.Println("epoll_wait: ", e)
-			break
-		}
-
-		for ev := 0; ev < nevents; ev++ {
-			if events[ev].Fd != ss {
-				echo(int(events[ev].Fd))
-			} else {
-				ndf, _, e := syscall.Accept4(s, syscall.SOCK_NONBLOCK)
-				if e != nil {
-					fmt.Println("accept: ", e)
-					os.Exit(1)
-				}
-
-				event.Events = syscall.EPOLLIN
-				event.Fd = int32(ndf)
-				if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, ndf, &event); e != nil {
-					fmt.Println("epoll_ctl: ", e)
-					os.Exit(1)
-				}
-			}
-		}
-	}
+	serv := myHttp.Server{Threads: runtime.NumCPU(), Port: 80}
+	serv.Start(HandleRequest)
 }

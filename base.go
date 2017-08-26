@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/buger/jsonparser"
+	"runtime"
 )
 
 func countAge(timestamp *int64) int {
@@ -24,7 +25,7 @@ func countAge(timestamp *int64) int {
 }
 
 func initializeSchema() (db*Schema) {
-	db = &Schema{make(map[uint]*User, 112000),make(map[uint]*Location, 87114),make(map[uint]*Visit, 1012000)}
+	db = &Schema{make(map[uint]*User, 1100000),make(map[uint]*Location, 800000),make(map[uint]*Visit, 10050000)}
 	_, err := exec.Command("sh","-c", "unzip /tmp/data/data.zip -d /tmp/base/").Output()
 	if err != nil {
 		fmt.Fprintln(os.Stdout, err.Error())
@@ -50,6 +51,7 @@ func initializeSchema() (db*Schema) {
 		id++
 		fileName = "/tmp/base/users_" + strconv.Itoa(id) + ".json"
 	}
+	runtime.GC()
 
 	id = 1
 	fileName = "/tmp/base/locations_" + strconv.Itoa(id) + ".json"
@@ -71,6 +73,7 @@ func initializeSchema() (db*Schema) {
 		id++
 		fileName = "/tmp/base/locations_" + strconv.Itoa(id) + ".json"
 	}
+	runtime.GC()
 
 	id = 1
 	fileName = "/tmp/base/visits_" + strconv.Itoa(id) + ".json"
@@ -97,8 +100,8 @@ func initializeSchema() (db*Schema) {
 		id++
 		fileName = "/tmp/base/visits_" + strconv.Itoa(id) + ".json"
 	}
+	runtime.GC()
 
 	fmt.Fprintf(os.Stdout, "Users: %d\nLocations: %d\nVisits: %d\n", len(db.users), len(db.locations), len(db.visits))
-
 	return
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/mailru/easyjson/jwriter"
+	"bytes"
 )
 
 func getUserJson(u *User){
@@ -64,7 +65,7 @@ func getVisitJson(v *Visit) {
 	v.json = w.Buffer.BuildBytes()
 }
 
-func getVisitsJson(v Visits) (out []byte) {
+func getVisitsJson(v Visits, buf *bytes.Buffer) {
 	w := jwriter.Writer{}
 
 	w.RawString("{\"visits\":[")
@@ -83,17 +84,16 @@ func getVisitsJson(v Visits) (out []byte) {
 	}
 	w.RawString("]}")
 
-	out = w.Buffer.BuildBytes()
-	return
+	buf.Write(w.Buffer.BuildBytes())
 }
 
-func getAvgJson(avg float64) (out []byte) {
+func getAvgJson(avg float64, buf *bytes.Buffer) {
 	w := jwriter.Writer{}
 
 	w.RawString("{\"avg\":")
 	w.Float64(toFixed(avg, 5))
 	w.RawString("}")
 
-	out = w.Buffer.BuildBytes()
+	buf.Write(w.Buffer.BuildBytes())
 	return
 }
