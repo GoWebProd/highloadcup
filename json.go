@@ -5,7 +5,7 @@ import (
 	"bytes"
 )
 
-func getUserJson(u *User){
+func getUserJson(u *User, b *bytes.Buffer){
 	w := jwriter.Writer{}
 
 	w.RawString("{\"id\":")
@@ -26,10 +26,10 @@ func getUserJson(u *User){
 	w.Int64(u.birth_date)
 	w.RawString("}")
 
-	u.json = w.Buffer.BuildBytes()
+	b.Write(w.Buffer.BuildBytes())
 }
 
-func getLocationJson(l *Location) {
+func getLocationJson(l *Location, b* bytes.Buffer) {
 	w := jwriter.Writer{}
 
 	w.RawString("{\"id\":")
@@ -44,10 +44,10 @@ func getLocationJson(l *Location) {
 	w.Int64(l.distance)
 	w.RawString("}")
 
-	l.json = w.Buffer.BuildBytes()
+	b.Write(w.Buffer.BuildBytes())
 }
 
-func getVisitJson(v *Visit) {
+func getVisitJson(v *Visit, b* bytes.Buffer) {
 	w := jwriter.Writer{}
 
 	w.RawString("{\"id\":")
@@ -62,7 +62,7 @@ func getVisitJson(v *Visit) {
 	w.Int64(v.mark)
 	w.RawString("}")
 
-	v.json = w.Buffer.BuildBytes()
+	b.Write(w.Buffer.BuildBytes())
 }
 
 func getVisitsJson(v Visits, buf *bytes.Buffer) {

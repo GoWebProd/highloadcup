@@ -28,7 +28,7 @@ func getUser(_id []byte, c *myHttp.Request) {
 		return
 	}
 
-	c.Answer.Write(user.json)
+	getUserJson(user, &c.Answer)
 	return
 }
 
@@ -45,7 +45,7 @@ func getLocation(_id []byte, c *myHttp.Request) {
 		return
 	}
 
-	c.Answer.Write(loc.json)
+	getLocationJson(loc, &c.Answer)
 	return
 }
 
@@ -62,7 +62,7 @@ func getVisit(_id []byte, c *myHttp.Request) {
 		return
 	}
 
-	c.Answer.Write(visit.json)
+	getVisitJson(visit, &c.Answer)
 }
 
 func getUserVisits(_id []byte, c *myHttp.Request) {
@@ -254,7 +254,6 @@ func addUser(c *myHttp.Request) {
 	if !id || !email || !first_name || !last_name || !gender || !birth_date {
 		c.Status = 400
 	} else {
-		getUserJson(u)
 		c.Answer.WriteString("{}")
 		db.users[u.id] = u
 	}
@@ -296,7 +295,6 @@ func addLocation(c *myHttp.Request) {
 	if !id || !place || !country || !city || !distance {
 		c.Status = 400
 	} else {
-		getLocationJson(l)
 		c.Answer.WriteString("{}")
 		db.locations[l.id] = l
 	}
@@ -354,7 +352,6 @@ func addVisit(c *myHttp.Request) {
 	if !id || !location || !user || !visited_at || !mark {
 		c.Status = 400
 	} else {
-		getVisitJson(v)
 		c.Answer.WriteString("{}")
 		db.visits[v.id] = v
 		v = db.visits[v.id]
@@ -448,7 +445,6 @@ func updateUser(_id []byte, c *myHttp.Request) {
 		u.age = u2.age
 		u.gender = u2.gender
 
-		getUserJson(u)
 		c.Answer.WriteString("{}")
 	}
 }
@@ -522,7 +518,6 @@ func updateLocation(_id []byte, c *myHttp.Request) {
 		l.city = l2.city
 		l.distance = l2.distance
 
-		getLocationJson(l)
 		c.Answer.WriteString("{}")
 	}
 }
@@ -609,7 +604,6 @@ func updateVisit(_id []byte, c *myHttp.Request) {
 			v.location = v2.location
 			v.location.visits = append(v.location.visits, v)
 		}
-		getVisitJson(v)
 		c.Answer.WriteString("{}")
 	}
 
@@ -672,6 +666,6 @@ func HandleRequest(c *myHttp.Request)  {
 func main()  {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	//go http.ListenAndServe("0.0.0.0:8081", nil)
-	serv := myHttp.Server{Threads: runtime.NumCPU(), Port: 80}
+	serv := myHttp.Server{Threads: runtime.NumCPU(), Port: 8080}
 	serv.Start(HandleRequest)
 }
