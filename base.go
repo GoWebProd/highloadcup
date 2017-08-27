@@ -44,7 +44,7 @@ func initializeSchema() (db*Schema) {
 			l_name, _ := jsonparser.GetString(value, "last_name")
 			gender, _ := jsonparser.GetString(value, "gender")
 			b_date, _ := jsonparser.GetInt(value, "birth_date")
-			u := &User{uint(id),email,f_name,l_name,gender == "m",b_date,countAge(&b_date),Visits{},[]byte{}}
+			u := &User{uint(id),email,f_name,l_name,gender == "m",b_date,countAge(&b_date),Visits{}}
 			db.users[uint(id)] = u
 		}, "users")
 		id++
@@ -64,7 +64,7 @@ func initializeSchema() (db*Schema) {
 			country, _ := jsonparser.GetString(value, "country")
 			city, _ := jsonparser.GetString(value, "city")
 			distance, _ := jsonparser.GetInt(value, "distance")
-			l := &Location{uint(id),place,country,city,distance,Visits{},[]byte{}}
+			l := &Location{uint(id),place,country,city,distance,Visits{}}
 			db.locations[uint(id)] = l
 
 		}, "locations")
@@ -88,7 +88,8 @@ func initializeSchema() (db*Schema) {
 
 			l := db.locations[uint(location)]
 			u := db.users[uint(user)]
-			v := &Visit{uint(id),l,u,visited_at,mark,[]byte{}}
+			v := &Visit{uint(id),l,u,visited_at,mark}
+			//getVisitJson(v)
 			db.visits[uint(id)] = v
 			l.visits = append(l.visits, v)
 			u.visits = append(u.visits, v)

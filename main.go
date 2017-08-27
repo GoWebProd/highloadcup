@@ -11,6 +11,9 @@ import (
 	
 	//"net/http"
 	//_ "net/http/pprof"
+	"os"
+	"runtime/pprof"
+	"fmt"
 )
 
 var db = initializeSchema()
@@ -83,30 +86,30 @@ func getUserVisits(_id []byte, c *myHttp.Request) {
 	country := ""
 	distance := 9223372036854775807
 
-	var err error
-	if c.Args.Has("fromDate") {
-		from, err = c.Args.GetUint("fromDate")
-		if err != nil {
+	var err bool
+	if c.Args.Has([]byte("fromDate")) {
+		from, err = c.Args.GetInt([]byte("fromDate"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("toDate") {
-		to, err = c.Args.GetUint("toDate")
-		if err != nil {
+	if c.Args.Has([]byte("toDate")) {
+		to, err = c.Args.GetInt([]byte("toDate"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("toDistance") {
-		distance, err = c.Args.GetUint("toDistance")
-		if err != nil {
+	if c.Args.Has([]byte("toDistance")) {
+		distance, err = c.Args.GetInt([]byte("toDistance"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("country") {
-		country = string(c.Args.GetString("country"))
+	if c.Args.Has([]byte("country")) {
+		country = string(c.Args.GetString([]byte("country")))
 		country, _ = url.QueryUnescape(country)
 	}
 
@@ -151,37 +154,37 @@ func getLocationAvg(_id []byte, c *myHttp.Request) {
 	to2 := 9223372036854775807
 	gender := 2
 
-	var err error
-	if c.Args.Has("fromDate") {
-		from, err = c.Args.GetUint("fromDate")
-		if err != nil {
+	var err bool
+	if c.Args.Has([]byte("fromDate")) {
+		from, err = c.Args.GetInt([]byte("fromDate"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("toDate") {
-		to, err = c.Args.GetUint("toDate")
-		if err != nil {
+	if c.Args.Has([]byte("toDate")) {
+		to, err = c.Args.GetInt([]byte("toDate"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("fromAge") {
-		from2, err = c.Args.GetUint("fromAge")
-		if err != nil {
+	if c.Args.Has([]byte("fromAge")) {
+		from2, err = c.Args.GetInt([]byte("fromAge"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("toAge") {
-		to2, err = c.Args.GetUint("toAge")
-		if err != nil {
+	if c.Args.Has([]byte("toAge")) {
+		to2, err = c.Args.GetInt([]byte("toAge"))
+		if err {
 			c.Status = 400
 			return
 		}
 	}
-	if c.Args.Has("gender") {
-		g := c.Args.GetString("gender")
+	if c.Args.Has([]byte("gender")) {
+		g := c.Args.GetString([]byte("gender"))
 		if bytes.Equal(g, []byte{'m'}) {
 			gender = 1
 		} else if bytes.Equal(g, []byte{'f'}) {
@@ -610,7 +613,7 @@ func updateVisit(_id []byte, c *myHttp.Request) {
 	return
 }
 
-func HandleRequest(c *myHttp.Request)  {
+func HandleRequest(c *myHttp.Request) {
 	p := c.Path
 	l := len(p)
 
@@ -658,14 +661,21 @@ func HandleRequest(c *myHttp.Request)  {
 		} else {
 			getVisit(p[8:], c)
 		}
+	case l == 2 && bytes.Equal(p[:2], []byte("/a")):
+		if fd, err := os.Create(`pprof.mem`); err == nil {
+			pprof.WriteHeapProfile(fd)
+			fd.Close()
+		}
 	default:
 		c.Status = 404
 	}
 }
 
+
 func main()  {
+	fmt.Println("Processors: ", runtime.NumCPU())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	//go http.ListenAndServe("0.0.0.0:8081", nil)
-	serv := myHttp.Server{Threads: runtime.NumCPU(), Port: 8080}
+	serv := myHttp.Server{Threads: runtime.NumCPU(), Port: 80}
 	serv.Start(HandleRequest)
 }

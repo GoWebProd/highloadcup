@@ -10,7 +10,6 @@ type User struct {
 
 	age   int
 	visits Visits
-	json []byte
 }
 
 type Location struct {
@@ -21,7 +20,6 @@ type Location struct {
 	distance int64
 
 	visits Visits
-	json []byte
 }
 
 type Visit struct {
@@ -30,8 +28,6 @@ type Visit struct {
 	user *User
 	visited_at int64
 	mark int64
-
-	json []byte
 }
 
 type Schema struct {

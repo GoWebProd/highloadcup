@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"bytes"
-	"strconv"
 )
 
 type Server struct {
@@ -18,37 +17,9 @@ const (
 	KB             = 2048
 )
 
-type Headers map[string][]byte
 type Handler func(*Request)
 
-func (c Headers) Has(key string) bool {
-	_, ok := c[key]
-	return ok
-}
-
-func (c Headers) GetUint(key string) (a int, b error) {
-	val := c[key]
-	a, b = strconv.Atoi(string(val))
-	return
-}
-
-func (c Headers) GetString(key string) []byte {
-	return c[key]
-}
-
-type Request struct {
-	Path []byte
-	Url []byte
-	Arg []byte
-	Body []byte
-	Post bool
-
-	Args Headers
-	Answer bytes.Buffer
-	Status int
-}
-
-func (c *Server) parseRequest(buf [KB]byte, r *Request, nbytes *int) {
+func (c *Server) parseRequest(buf []byte, r *Request, nbytes *int) {
 	if bytes.Equal(buf[0:4], []byte("POST")) {
 		r.Post = true
 		for i := 0; i < *nbytes - 4; i++ {
@@ -80,7 +51,7 @@ func (c *Server) parseRequest(buf [KB]byte, r *Request, nbytes *int) {
 				splitted := bytes.Split(a, []byte("&"))
 				for _, v := range splitted {
 					kv := bytes.Split(v, []byte("="))
-					r.Args[string(kv[0])] = kv[1]
+					r.Args.Add(kv[0], kv[1])
 				}
 			}
 
@@ -89,7 +60,7 @@ func (c *Server) parseRequest(buf [KB]byte, r *Request, nbytes *int) {
 	}
 }
 
-func (c *Server) prepareResponse( r *Request, b *bytes.Buffer) {
+func (c *Server) prepareResponse( r *Request, b *Buffer) {
 	b.Reset()
 	b.WriteString("HTTP/1.1 ")
 	if r.Status == 200 {
@@ -100,8 +71,9 @@ func (c *Server) prepareResponse( r *Request, b *bytes.Buffer) {
 		b.WriteString("404 Bad Request")
 	}
 	b.WriteString("\r\nContent-Type: application/json\r\nContent-Length: ")
-	b.WriteString(strconv.Itoa(r.Answer.Len()))
-	b.WriteString("\r\nConnection: keep-alive\r\nServer: GoWebServ 1.0.2\r\n\r\n")
+	//b.WriteString(strconv.Itoa(r.Answer.Len()))
+	b.WriteInt(int64(r.Answer.Len()))
+	b.WriteString("\r\nConnection: keep-alive\r\nServer: GoWebServ 1.0.1\r\n\r\n")
 	b.Write(r.Answer.Bytes())
 }
 
@@ -109,18 +81,17 @@ func (c *Server) clear(r *Request) {
 	r.Answer.Reset()
 	r.Path = nil
 	r.Url = nil
-	r.Args = nil
 	r.Arg = nil
 	r.Body = nil
 	r.Post = false
 	r.Status = 200
-	r.Args = make(map[string][]byte)
+	r.Args.Clear()
 }
 
-func (c *Server) echo(in int, buf [KB]byte, r *Request, b *bytes.Buffer, h Handler) {
+func (c *Server) echo(in int, buf []byte, r *Request, b *Buffer, h Handler) {
 	c.clear(r)
 
-	nbytes, _ := syscall.Read(in, buf[:])
+	nbytes, _ := syscall.Read(in, buf)
 	if nbytes == 0 {
 		syscall.Close(in)
 	} else {
@@ -151,6 +122,12 @@ func (c *Server) worker(h Handler) {
 		fmt.Println("reuse-addr: ", e)
 		os.Exit(1)
 	}
+
+	/*e = syscall.SetsockoptInt(s, syscall.SOL_SOCKET, 46, 50)
+	if e != nil {
+		fmt.Println("busypool: ", e)
+		os.Exit(1)
+	}*/
 
 	e = syscall.SetsockoptInt(s, syscall.SOL_SOCKET, 0x0F, 1)
 	if e != nil {
@@ -199,9 +176,9 @@ func (c *Server) worker(h Handler) {
 	var ss = int32(s)
 	var events [MaxEpollEvents]syscall.EpollEvent
 	var buf [KB]byte
-	var b *bytes.Buffer
+	var b *Buffer
 	var r *Request
-	b = new(bytes.Buffer)
+	b = new(Buffer)
 	b.Grow(1000)
 	r = new(Request)
 	r.Answer.Grow(8192)
@@ -215,7 +192,7 @@ func (c *Server) worker(h Handler) {
 
 		for ev := 0; ev < nevents; ev++ {
 			if events[ev].Fd != ss {
-				c.echo(int(events[ev].Fd), buf, r, b, h)
+				c.echo(int(events[ev].Fd), buf[:], r, b, h)
 			} else {
 				ndf, _, e := syscall.Accept4(s, syscall.SOCK_NONBLOCK)
 				if e != nil {
